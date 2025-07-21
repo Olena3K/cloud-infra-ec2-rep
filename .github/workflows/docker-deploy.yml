@@ -12,6 +12,10 @@ env:
   ECS_SERVICE: cloud-infra-demo-service
   CONTAINER_NAME: app
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
