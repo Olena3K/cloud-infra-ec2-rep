@@ -7,7 +7,7 @@ on:
 
 env:
   AWS_REGION: eu-north-1
-  ECR_REPOSITORY: cloud-infra
+  ECR_REPOSITORY: cloud-infra-demo
   ECS_CLUSTER: cloud-infra-cluster
   ECS_SERVICE: cloud-infra-service
   CONTAINER_NAME: app
