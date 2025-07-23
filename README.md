@@ -7,7 +7,7 @@ The Flask app serves a simple page and a /health endpoint. The app is containeri
 
 ---
 
-## 👉 [website](https://your-domain.com)
+## 👉 [website] http://16.16.66.14
 
 ## 📂 Structure
 
