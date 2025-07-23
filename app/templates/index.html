@@ -2,78 +2,44 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hello from Cloud</title>
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap"
-      rel="stylesheet"
-    />
-    <style>
-      body {
-        margin: 0;
-        font-family: "Inter", sans-serif;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        background: linear-gradient(135deg, #667eea, #764ba2);
-      }
-      .card {
-        background: rgba(0, 0, 0, 0.5);
-        padding: 40px;
-        border-radius: 15px;
-        text-align: center;
-        color: white;
-        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-        backdrop-filter: blur(10px);
-      }
-      .btn {
-        margin-top: 20px;
-        padding: 10px 20px;
-        border: none;
-        border-radius: 8px;
-        background: #4fd1c5;
-        color: white;
-        font-size: 16px;
-        cursor: pointer;
-      }
-      .btn:hover {
-        background: #38b2ac;
-      }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cloud Infra Demo — Olenka</title>
+    <script src="https://cdn.tailwindcss.com"></script>
   </head>
-  <body>
-    <div class="card">
-      <h1>Hello, Cloud User!</h1>
-      <p>
-        This app is running in a cloud environment with Docker, CI/CD, and
-        Monitoring.
+  <body
+    class="bg-blue-100 text-gray-800 font-sans min-h-screen flex items-center justify-center p-4"
+  >
+    <div class="max-w-3xl w-full bg-white rounded-2xl shadow-xl p-10">
+      <h1 class="text-4xl font-bold text-center mb-4 text-gray-900">
+        Cloud Infrastructure Demo
+      </h1>
+      <p class="text-lg mb-6 text-center text-gray-700">
+        Hi 👋 This is a simple Flask app deployed on AWS ECS Fargate with CI/CD
+        pipelines. It demonstrates modern cloud deployments, containerization,
+        IaC, and automation using DevOps tools.
       </p>
-      <button onclick="getUser()" class="btn">Get User from DB</button>
-      <p id="user-result"></p>
-    </div>
 
-    <script>
-      function getUser() {
-        fetch("/api/user")
-          .then((response) => response.json())
-          .then((data) => {
-            if (data.error) {
-              document.getElementById("user-result").innerText =
-                "Error: " + data.error;
-            } else if (data.username) {
-              document.getElementById("user-result").innerText =
-                "Привіт, " + data.username + "!";
-            } else {
-              document.getElementById("user-result").innerText =
-                "No user found.";
-            }
-          })
-          .catch((error) => {
-            document.getElementById("user-result").innerText =
-              "Error: Failed to fetch user.";
-          });
-      }
-    </script>
+      <h2 class="text-2xl font-semibold mb-3 text-gray-900">Tech Stack</h2>
+      <ul class="list-disc list-inside space-y-1 mb-6 text-gray-700">
+        <li>Python Flask</li>
+        <li>Docker</li>
+        <li>GitHub Actions</li>
+        <li>Terraform</li>
+        <li>AWS ECS</li>
+        <li>Fargate</li>
+        <li>ECR</li>
+        <li>CloudWatch Logs</li>
+      </ul>
+
+      <div class="text-center">
+        <a
+          href="https://github.com/YOUR_USERNAME/YOUR_REPO"
+          class="inline-block px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
+          target="_blank"
+        >
+          View on GitHub →
+        </a>
+      </div>
+    </div>
   </body>
 </html>
