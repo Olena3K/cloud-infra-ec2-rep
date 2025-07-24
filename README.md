@@ -7,8 +7,6 @@ The Flask app serves a simple page and a /health endpoint. The app is containeri
 
 ---
 
-## 👉 [website](https://your-domain.com)
-
 ## 📂 Structure
 
 cloud-infra-demo/
@@ -62,7 +60,7 @@ Local Setup
        pip install -r app/requirements.txt
 3. Run the Flask app:
        python app/main.py
-4. Access at http://localhost:80 and /health.
+4. Access your localhost:80 and /health.
 
 
 

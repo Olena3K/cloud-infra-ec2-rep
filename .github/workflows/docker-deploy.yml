@@ -1,4 +1,4 @@
-name: Build, Push to ECR, Deploy to ECS
+name: Build, Push to ECR, Deploy to ECS-EC2
 
 on:
   push:
@@ -8,8 +8,8 @@ on:
 env:
   AWS_REGION: eu-north-1
   ECR_REPOSITORY: cloud-infra-demo
-  ECS_CLUSTER: cloud-infra-cluster
-  ECS_SERVICE: cloud-infra-service
+  ECS_CLUSTER: cloud-infra-ec2-cluster
+  ECS_SERVICE: cloud-infra-ec2-service
   CONTAINER_NAME: app
 
 permissions:
@@ -18,10 +18,11 @@ permissions:
 
 jobs:
   deploy:
+    name: Build & Deploy to ECS EC2
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout source code
         uses: actions/checkout@v4
 
       - name: Configure AWS credentials
@@ -43,7 +44,7 @@ jobs:
         run: |
           docker push ${{ steps.login-ecr.outputs.registry }}/${ECR_REPOSITORY}:latest
 
-      - name: Force new ECS deployment
+      - name: Force new ECS EC2 deployment
         run: |
           aws ecs update-service \
             --cluster $ECS_CLUSTER \
