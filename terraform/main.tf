@@ -1,23 +1,26 @@
-# Підключаємо вже створену VPC і сабнети з vpc.tf
-locals {
-  public_subnet_ids = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+resource "aws_vpc" "main" {
+  cidr_block = "10.0.0.0/16"
 }
 
-# ECR Repository
-resource "aws_ecr_repository" "app_repo" {
-  name = "cloud-infra-demo"
+resource "aws_subnet" "main" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "eu-north-1a"
+  map_public_ip_on_launch = true
 }
 
-# Security Group for ECS tasks and ALB
-resource "aws_security_group" "ecs_service_sg" {
-  name        = "ecs_service_sg"
-  description = "Allow HTTP"
-  vpc_id     = aws_vpc.app_vpc.id
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+}
+
+resource "aws_security_group" "ecs_instance_sg" {
+  name   = "ecs-instance-sg"
+  vpc_id = aws_vpc.main.id
 
   ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
@@ -30,122 +33,151 @@ resource "aws_security_group" "ecs_service_sg" {
 }
 
 # ECS Cluster
-resource "aws_ecs_cluster" "app_cluster" {
-  name = "cloud-infra-demo-cluster"
+resource "aws_ecs_cluster" "main" {
+  name = "cloud-infra-ec2-cluster"
 }
 
-# IAM Role for ECS Task Execution
-resource "aws_iam_role" "ecs_task_execution_role" {
-  name = "ecsTaskExecutionRole"
-
+# IAM Role for EC2
+resource "aws_iam_role" "ecs_instance_role" {
+  name = "ecs-instance-role"
   assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
-      Principal = {
-        Service = "ecs-tasks.amazonaws.com"
-      }
-    }]
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Action = "sts:AssumeRole",
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        },
+        Effect = "Allow",
+      },
+    ],
   })
 }
 
-resource "aws_iam_role_policy_attachment" "ecs_task_execution_attach" {
-  role       = aws_iam_role.ecs_task_execution_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+resource "aws_iam_role_policy_attachment" "ecs_instance_role_attach" {
+  role       = aws_iam_role.ecs_instance_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
 }
 
-# ECS Task Definition
-resource "aws_ecs_task_definition" "app_task" {
-  family                   = "cloud-infra-demo-task"
-  network_mode             = "awsvpc"
-  requires_compatibilities = ["FARGATE"]
+resource "aws_iam_instance_profile" "ecs_instance_profile" {
+  name = "ecs-instance-profile"
+  role = aws_iam_role.ecs_instance_role.name
+}
+
+# Launch Template
+resource "aws_launch_template" "ecs" {
+  name_prefix   = "ecs-ec2-lt-"
+  image_id      = data.aws_ami.ecs_ami.id
+  instance_type = "t3.micro"
+
+  iam_instance_profile {
+    name = aws_iam_instance_profile.ecs_instance_profile.name
+  }
+
+  network_interfaces {
+    associate_public_ip_address = true
+    security_groups             = [aws_security_group.ecs_instance_sg.id]
+  }
+
+  user_data = base64encode(<<EOF
+#!/bin/bash
+echo ECS_CLUSTER=${aws_ecs_cluster.main.name} >> /etc/ecs/ecs.config
+EOF
+  )
+}
+
+# Get ECS Optimized AMI
+data "aws_ami" "ecs_ami" {
+  most_recent = true
+
+  owners = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["*amazon-ecs-optimized*"]
+  }
+}
+
+# Auto Scaling Group
+resource "aws_autoscaling_group" "ecs_asg" {
+  desired_capacity     = 1
+  max_size             = 1
+  min_size             = 1
+  vpc_zone_identifier  = [aws_subnet.main.id]
+
+  launch_template {
+    id      = aws_launch_template.ecs.id
+    version = "$Latest"
+  }
+
+  tag {
+    key                 = "Name"
+    value               = "ecs-ec2-instance"
+    propagate_at_launch = true
+  }
+}
+
+# ECS Capacity Provider
+resource "aws_ecs_capacity_provider" "ec2_cp" {
+  name = "ecs-ec2-cp"
+
+  auto_scaling_group_provider {
+    auto_scaling_group_arn         = aws_autoscaling_group.ecs_asg.arn
+    managed_termination_protection = "ENABLED"
+
+    managed_scaling {
+      status                    = "ENABLED"
+      target_capacity           = 100
+      minimum_scaling_step_size = 1
+      maximum_scaling_step_size = 1000
+      instance_warmup_period    = 300
+    }
+  }
+}
+
+resource "aws_ecs_cluster_capacity_providers" "main" {
+  cluster_name       = aws_ecs_cluster.main.name
+  capacity_providers = [aws_ecs_capacity_provider.ec2_cp.name]
+
+  default_capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ec2_cp.name
+    weight            = 1
+  }
+}
+
+# Task Definition (EC2)
+resource "aws_ecs_task_definition" "app" {
+  family                   = "cloud-infra-ec2-task"
+  network_mode             = "bridge"
+  requires_compatibilities = ["EC2"]
   cpu                      = "256"
   memory                   = "512"
-  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
 
   container_definitions = jsonencode([
     {
-      name      = "app"
-      image     = "${aws_ecr_repository.app_repo.repository_url}:latest"
-      essential = true
+      name      = "app",
+      image = "<897729142473>.dkr.ecr.eu-north-1.amazonaws.com/cloud-infra-demo:latest",
+      cpu       = 256,
+      memory    = 512,
+      essential = true,
       portMappings = [
         {
-          containerPort = 80
+          containerPort = 80,
           hostPort      = 80
         }
       ]
-      environment = [
-        { name = "DB_HOST", value = "your-rds-endpoint-or-db-ip" },
-        { name = "DB_NAME", value = "testdb" },
-        { name = "DB_USER", value = "testuser" },
-        { name = "DB_PASS", value = "testpass" }
-      ]
-      healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
-        interval    = 30
-        timeout     = 5
-        retries     = 3
-        startPeriod = 10
-      }
     }
   ])
 }
 
-# ALB
-resource "aws_lb" "app_alb" {
-  name               = "cloud-infra-demo-alb"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.ecs_service_sg.id]
-  subnets            = local.public_subnet_ids
-}
-
-resource "aws_lb_target_group" "app_tg" {
-  name     = "cloud-infra-demo-tg"
-  port     = 80
-  protocol = "HTTP"
-  vpc_id   = aws_vpc.app_vpc.id
-
-  health_check {
-    path                = "/health"
-    interval            = 30
-    timeout             = 5
-    healthy_threshold   = 2
-    unhealthy_threshold = 2
-  }
-}
-
-resource "aws_lb_listener" "app_listener" {
-  load_balancer_arn = aws_lb.app_alb.arn
-  port              = 80
-  protocol          = "HTTP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.app_tg.arn
-  }
-}
-
 # ECS Service
-resource "aws_ecs_service" "app_service" {
-  name            = "cloud-infra-demo-service"
-  cluster         = aws_ecs_cluster.app_cluster.id
-  task_definition = aws_ecs_task_definition.app_task.arn
-  launch_type     = "FARGATE"
+resource "aws_ecs_service" "app" {
+  name            = "cloud-infra-ec2-service"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.app.arn
   desired_count   = 1
+  launch_type     = "EC2"
 
-  network_configuration {
-    subnets         = local.public_subnet_ids
-    security_groups = [aws_security_group.ecs_service_sg.id]
-    assign_public_ip = true
-  }
-
-  load_balancer {
-    target_group_arn = aws_lb_target_group.app_tg.arn
-    container_name   = "app"
-    container_port   = 80
-  }
-
-  depends_on = [aws_lb_listener.app_listener]
+  deployment_minimum_healthy_percent = 50
+  deployment_maximum_percent         = 200
 }
