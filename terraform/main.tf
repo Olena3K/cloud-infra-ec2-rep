@@ -1,6 +1,10 @@
 # ------------------ VPC ------------------
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
+
+  tags = {
+    Name = "main-vpc"
+  }
 }
 
 resource "aws_subnet" "main" {
@@ -8,10 +12,18 @@ resource "aws_subnet" "main" {
   cidr_block              = "10.0.1.0/24"
   availability_zone       = "eu-north-1a"
   map_public_ip_on_launch = true
+
+  tags = {
+    Name = "main-subnet"
+  }
 }
 
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = "main-igw"
+  }
 }
 
 resource "aws_security_group" "ecs_instance_sg" {
@@ -31,6 +43,10 @@ resource "aws_security_group" "ecs_instance_sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  tags = {
+    Name = "ecs-instance-sg"
+  }
 }
 
 # ------------------ ECS Cluster ------------------
@@ -43,15 +59,11 @@ resource "aws_iam_role" "ecs_instance_role" {
   name = "ecs-instance-role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
-    Statement = [
-      {
-        Action = "sts:AssumeRole",
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        },
-        Effect = "Allow",
-      },
-    ],
+    Statement = [{
+      Action = "sts:AssumeRole",
+      Principal = { Service = "ec2.amazonaws.com" },
+      Effect   = "Allow",
+    }]
   })
 }
 
@@ -68,8 +80,7 @@ resource "aws_iam_instance_profile" "ecs_instance_profile" {
 # ------------------ Launch Template ------------------
 data "aws_ami" "ecs_ami" {
   most_recent = true
-
-  owners = ["amazon"]
+  owners      = ["amazon"]
 
   filter {
     name   = "name"
@@ -100,14 +111,16 @@ EOF
 
 # ------------------ Auto Scaling Group ------------------
 resource "aws_autoscaling_group" "ecs_asg" {
-  desired_capacity    = 1
-  max_size            = 1
-  min_size            = 1
-  vpc_zone_identifier = [aws_subnet.main.id]
+  desired_capacity         = 1
+  max_size                 = 1
+  min_size                 = 1
+  vpc_zone_identifier      = [aws_subnet.main.id]
+  health_check_type        = "EC2"
+  health_check_grace_period = 300
 
   launch_template {
     id      = aws_launch_template.ecs.id
-    version = "$Latest"
+    version = "Latest"
   }
 
   protect_from_scale_in = true
@@ -119,20 +132,19 @@ resource "aws_autoscaling_group" "ecs_asg" {
   }
 }
 
-
 # ------------------ ECS Capacity Provider ------------------
 resource "aws_ecs_capacity_provider" "ec2_cp" {
-  name = "cloudinfra-ec2-cp"
+  name = "cloud-infra-ec2-cp"
 
   auto_scaling_group_provider {
-    auto_scaling_group_arn         = aws_autoscaling_group.ecs_asg.arn
-    managed_termination_protection = "ENABLED"
+    auto_scaling_group_arn          = aws_autoscaling_group.ecs_asg.arn
+    managed_termination_protection  = "ENABLED"
 
     managed_scaling {
       status                    = "ENABLED"
       target_capacity           = 100
       minimum_scaling_step_size = 1
-      maximum_scaling_step_size = 1000
+      maximum_scaling_step_size = 100
       instance_warmup_period    = 300
     }
   }
@@ -159,7 +171,7 @@ resource "aws_ecs_task_definition" "app" {
   container_definitions = jsonencode([
     {
       name      = "app",
-      image     = "897729142473.dkr.ecr.eu-north-1.amazonaws.com/cloud-infra-demo:latest",
+      image     = "897729142473.dkr.ecr.eu-north-1.amazonaws.com/cloud-infra-ec2-rep:latest",
       cpu       = 256,
       memory    = 512,
       essential = true,
@@ -183,4 +195,9 @@ resource "aws_ecs_service" "app" {
 
   deployment_minimum_healthy_percent = 50
   deployment_maximum_percent         = 200
+
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ec2_cp.name
+    weight            = 1
+  }
 }
