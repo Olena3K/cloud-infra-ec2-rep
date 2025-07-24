@@ -1,3 +1,4 @@
+# ------------------ VPC ------------------
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
 }
@@ -32,12 +33,12 @@ resource "aws_security_group" "ecs_instance_sg" {
   }
 }
 
-# ECS Cluster
+# ------------------ ECS Cluster ------------------
 resource "aws_ecs_cluster" "main" {
   name = "cloud-infra-ec2-cluster"
 }
 
-# IAM Role for EC2
+# ------------------ IAM ------------------
 resource "aws_iam_role" "ecs_instance_role" {
   name = "ecs-instance-role"
   assume_role_policy = jsonencode({
@@ -64,7 +65,18 @@ resource "aws_iam_instance_profile" "ecs_instance_profile" {
   role = aws_iam_role.ecs_instance_role.name
 }
 
-# Launch Template
+# ------------------ Launch Template ------------------
+data "aws_ami" "ecs_ami" {
+  most_recent = true
+
+  owners = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["*amazon-ecs-optimized*"]
+  }
+}
+
 resource "aws_launch_template" "ecs" {
   name_prefix   = "ecs-ec2-lt-"
   image_id      = data.aws_ami.ecs_ami.id
@@ -86,29 +98,19 @@ EOF
   )
 }
 
-# Get ECS Optimized AMI
-data "aws_ami" "ecs_ami" {
-  most_recent = true
-
-  owners = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["*amazon-ecs-optimized*"]
-  }
-}
-
-# Auto Scaling Group
+# ------------------ Auto Scaling Group ------------------
 resource "aws_autoscaling_group" "ecs_asg" {
-  desired_capacity     = 1
-  max_size             = 1
-  min_size             = 1
-  vpc_zone_identifier  = [aws_subnet.main.id]
+  desired_capacity    = 1
+  max_size            = 1
+  min_size            = 1
+  vpc_zone_identifier = [aws_subnet.main.id]
 
   launch_template {
     id      = aws_launch_template.ecs.id
     version = "$Latest"
   }
+
+  protect_from_scale_in = true
 
   tag {
     key                 = "Name"
@@ -117,9 +119,10 @@ resource "aws_autoscaling_group" "ecs_asg" {
   }
 }
 
-# ECS Capacity Provider
+
+# ------------------ ECS Capacity Provider ------------------
 resource "aws_ecs_capacity_provider" "ec2_cp" {
-  name = "ecs-ec2-cp"
+  name = "cloudinfra-ec2-cp"
 
   auto_scaling_group_provider {
     auto_scaling_group_arn         = aws_autoscaling_group.ecs_asg.arn
@@ -145,7 +148,7 @@ resource "aws_ecs_cluster_capacity_providers" "main" {
   }
 }
 
-# Task Definition (EC2)
+# ------------------ Task Definition ------------------
 resource "aws_ecs_task_definition" "app" {
   family                   = "cloud-infra-ec2-task"
   network_mode             = "bridge"
@@ -156,7 +159,7 @@ resource "aws_ecs_task_definition" "app" {
   container_definitions = jsonencode([
     {
       name      = "app",
-      image = "<897729142473>.dkr.ecr.eu-north-1.amazonaws.com/cloud-infra-demo:latest",
+      image     = "897729142473.dkr.ecr.eu-north-1.amazonaws.com/cloud-infra-demo:latest",
       cpu       = 256,
       memory    = 512,
       essential = true,
@@ -170,7 +173,7 @@ resource "aws_ecs_task_definition" "app" {
   ])
 }
 
-# ECS Service
+# ------------------ ECS Service ------------------
 resource "aws_ecs_service" "app" {
   name            = "cloud-infra-ec2-service"
   cluster         = aws_ecs_cluster.main.id
