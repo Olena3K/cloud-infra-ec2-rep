@@ -54,8 +54,8 @@ AWS IAM permissions for ECS, ECR, and IAM
 ## ⚙️
 
 Local Setup
-1. Clone the repository:git clone https://github.com/Olena3K/cloud-infra-demo.git
-       cd cloud-infra-demo
+1. Clone the repository:git clone https://github.com/Olena3K/cloud-infra-ec2-rep.git
+       cd cloud-infra-ec2-rep
 2. Install dependencies:
        pip install -r app/requirements.txt
 3. Run the Flask app:
@@ -66,9 +66,9 @@ Local Setup
 
 Docker Setup
 1. Build the Docker image:
-       docker build -t cloud-infra-demo .
+       docker build -t cloud-infra-ec2-rep .
 2. Run the container:
-       docker run -p 80:80 -d cloud-infra-demo
+       docker run -p 80:80 -d cloud-infra-ec2-rep
 3. Verify healthcheck:
        docker ps
 
