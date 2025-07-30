@@ -3,7 +3,7 @@
 This project demonstrates a simple Flask web application integrated with PostgreSQL, deployed on AWS ECS using modern DevOps practices. It includes CI/CD with GitHub Actions, containerization with Docker, infrastructure-as-code with Terraform, and monitoring with healthchecks and CloudWatch.
 
 Overview
-The Flask app serves a simple page and a /health endpoint. The app is containerized, stored in AWS ECR, and deployed to ECS in the eu-north-1 region using Terraform. GitHub Actions automates the build and deployment pipeline, with monitoring via AWS CloudWatch.
+The Flask app serves a simple page and a /health endpoint. The app is containerized, stored in AWS ECR, and deployed to EC2 in the eu-north-1 region using Terraform. GitHub Actions automates the build and deployment pipeline, with monitoring via AWS CloudWatch.
 
 ---
 
